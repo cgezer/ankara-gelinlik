@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Yönetici Girişi</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<h2>Yönetici Girişi</h2>
+<form th:action="@{/login}" method="post">
+    <div>
+        <label for="username">Email:</label>
+        <input type="text" id="username" name="username" required/>
+    </div>
+    <div>
+        <label for="password">Şifre:</label>
+        <input type="password" id="password" name="password" required/>
+    </div>
+    <div>
+        <button type="submit">Giriş Yap</button>
+    </div>
+    <div th:if="${param.error}">
+        <p style="color:red;">Geçersiz kullanıcı adı veya şifre</p>
+    </div>
+    <div th:if="${param.logout}">
+        <p style="color:green;">Başarıyla çıkış yapıldı</p>
+    </div>
+</form>
+</body>
+</html>

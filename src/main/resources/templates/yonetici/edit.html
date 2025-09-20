@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Yönetici Düzenle</title>
+</head>
+<body>
+<h1>Yönetici Düzenle</h1>
+
+<form th:action="@{/yonetici/edit/{id}(id=${yonetici.id})}" th:object="${yonetici}" method="post">
+    <label>Ad:</label>
+    <input type="text" th:field="*{ad}" required/><br/>
+
+    <label>Soyad:</label>
+    <input type="text" th:field="*{soyad}" required/><br/>
+
+    <label>Email:</label>
+    <input type="email" th:field="*{email}" required/><br/>
+
+    <label>Şifre:</label>
+    <input type="password" th:field="*{sifre}" required/><br/>
+
+    <button type="submit">Güncelle</button>
+</form>
+
+<a th:href="@{/yonetici}">Geri Dön</a>
+</body>
+</html>
