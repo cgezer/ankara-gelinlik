@@ -5,20 +5,19 @@
 </head>
 <body>
 <h1>Yönetici Listesi</h1>
-<a th:href="@{/yonetici/create}">Yeni Yönetici Ekle</a>
+<a href="/yonetici/change-password">Şifre Değiştir</a>
 <table border="1">
     <tr>
-        <th>ID</th><th>Ad</th><th>Soyad</th><th>Email</th><th>İşlem</th>
+        <th>ID</th>
+        <th>Ad</th>
+        <th>Soyad</th>
+        <th>Email</th>
     </tr>
     <tr th:each="y : ${yoneticiler}">
         <td th:text="${y.id}"></td>
         <td th:text="${y.ad}"></td>
         <td th:text="${y.soyad}"></td>
         <td th:text="${y.email}"></td>
-        <td>
-            <a th:href="@{/yonetici/edit/{id}(id=${y.id})}">Düzenle</a>
-            <a th:href="@{/yonetici/delete/{id}(id=${y.id})}">Sil</a>
-        </td>
     </tr>
 </table>
 </body>

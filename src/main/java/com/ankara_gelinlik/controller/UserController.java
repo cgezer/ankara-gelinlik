@@ -9,32 +9,30 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.util.List;
 
 @Controller
-@RequestMapping("/yonetici")
-public class YoneticiController {
+@RequestMapping("/user")
+public class UserController {
 
     private final YoneticiService yoneticiService;
     private final PasswordEncoder passwordEncoder;
 
-    public YoneticiController(YoneticiService yoneticiService, PasswordEncoder passwordEncoder) {
+    public UserController(YoneticiService yoneticiService, PasswordEncoder passwordEncoder) {
         this.yoneticiService = yoneticiService;
         this.passwordEncoder = passwordEncoder;
     }
 
-    @GetMapping("/list")
-    public String list(Model model) {
-        List<Yonetici> list = yoneticiService.findAll();
-        model.addAttribute("yoneticiler", list);
-        return "yonetici/list";
+    @GetMapping("/dashboard")
+    public String dashboard(Model model, Principal principal) {
+        model.addAttribute("email", principal.getName());
+        return "user/dashboard";
     }
 
     @GetMapping("/change-password")
     public String changePasswordForm(Model model, Principal principal) {
         model.addAttribute("email", principal.getName());
         model.addAttribute("passwordForm", new PasswordForm());
-        return "yonetici/change-password";
+        return "user/change-password";
     }
 
     @PostMapping("/change-password")
@@ -46,17 +44,17 @@ public class YoneticiController {
 
         if (!passwordEncoder.matches(form.getOldPassword(), yonetici.getSifre())) {
             model.addAttribute("error", "Mevcut şifreniz yanlış.");
-            return "yonetici/change-password";
+            return "user/change-password";
         }
         if (!form.getNewPassword().equals(form.getConfirmPassword())) {
             model.addAttribute("error", "Yeni şifre ile tekrar şifre eşleşmiyor.");
-            return "yonetici/change-password";
+            return "user/change-password";
         }
 
         yonetici.setSifre(passwordEncoder.encode(form.getNewPassword()));
         yoneticiService.save(yonetici);
 
         model.addAttribute("success", "Şifre başarıyla değiştirildi.");
-        return "yonetici/change-password";
+        return "user/change-password";
     }
 }

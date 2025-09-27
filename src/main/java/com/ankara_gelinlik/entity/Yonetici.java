@@ -3,7 +3,7 @@ package com.ankara_gelinlik.entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "yonetici")
+@Table(name = "yonetici") // DB'deki tablo adı: yonetici (tekil)
 public class Yonetici {
 
     @Id
@@ -13,49 +13,33 @@ public class Yonetici {
     private String ad;
     private String soyad;
 
-    @Column(unique = true)
+    @Column(unique = true, nullable = false)
     private String email;
 
+    @Column(nullable = false)
     private String sifre;
 
-    // Getter ve Setter metodları
-    public Long getId() {
-        return id;
-    }
+    @Column(nullable = false)
+    private String role; // örn: "ADMIN" veya "ROLE_ADMIN" veya "USER"
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    public Yonetici() {}
 
-    public String getAd() {
-        return ad;
-    }
+    // getters & setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public void setAd(String ad) {
-        this.ad = ad;
-    }
+    public String getAd() { return ad; }
+    public void setAd(String ad) { this.ad = ad; }
 
-    public String getSoyad() {
-        return soyad;
-    }
+    public String getSoyad() { return soyad; }
+    public void setSoyad(String soyad) { this.soyad = soyad; }
 
-    public void setSoyad(String soyad) {
-        this.soyad = soyad;
-    }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
-    public String getEmail() {
-        return email;
-    }
+    public String getSifre() { return sifre; }
+    public void setSifre(String sifre) { this.sifre = sifre; }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getSifre() {
-        return sifre;
-    }
-
-    public void setSifre(String sifre) {
-        this.sifre = sifre;
-    }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 }

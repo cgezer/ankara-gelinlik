@@ -6,6 +6,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @SpringBootApplication
@@ -16,26 +17,20 @@ public class AnkaraGelinlikApplication {
     }
 
     @Bean
-    CommandLineRunner init(YoneticiRepository yoneticiRepository, PasswordEncoder passwordEncoder) {
+    public CommandLineRunner init(YoneticiRepository yoneticiRepository, PasswordEncoder passwordEncoder) {
         return args -> {
-            if (yoneticiRepository.count() == 0) {
-                // Test yönetici 1
-                Yonetici y1 = new Yonetici();
-                y1.setAd("Admin");
-                y1.setSoyad("User");
-                y1.setEmail("admin@example.com");
-                y1.setSifre(passwordEncoder.encode("12345"));
-                yoneticiRepository.save(y1);
-
-                // Test yönetici 2
-                Yonetici y2 = new Yonetici();
-                y2.setAd("Test");
-                y2.setSoyad("User");
-                y2.setEmail("test@example.com");
-                y2.setSifre(passwordEncoder.encode("password"));
-                yoneticiRepository.save(y2);
-
-                System.out.println("Test yöneticiler eklendi!");
+            String adminEmail = "admin@example.com";
+            if (yoneticiRepository.findByEmail(adminEmail).isEmpty()) {
+                Yonetici admin = new Yonetici();
+                admin.setAd("Admin");
+                admin.setSoyad("User");
+                admin.setEmail(adminEmail);
+                admin.setRole("ADMIN"); // DB'ye "ADMIN" kaydediyoruz (SecurityConfig bunu ROLE_ADMIN olarak kullanacak)
+                admin.setSifre(passwordEncoder.encode("123456"));
+                yoneticiRepository.save(admin);
+                System.out.println("🔧 Admin created: " + adminEmail);
+            } else {
+                System.out.println("ℹ️ Admin already exists: " + adminEmail);
             }
         };
     }
