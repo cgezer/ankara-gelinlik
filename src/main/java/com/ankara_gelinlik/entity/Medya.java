@@ -18,6 +18,5 @@ public class Medya {
     private String aciklama;
     private String dosyaAdi;
     private String dosyaYolu;
-
     private LocalDateTime olusturmaTarihi;
 }

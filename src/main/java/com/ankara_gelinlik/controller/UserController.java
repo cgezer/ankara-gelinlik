@@ -1,60 +1,61 @@
 package com.ankara_gelinlik.controller;
 
-import com.ankara_gelinlik.dto.PasswordForm;
-import com.ankara_gelinlik.entity.Yonetici;
-import com.ankara_gelinlik.service.YoneticiService;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import com.ankara_gelinlik.entity.User;
+import com.ankara_gelinlik.repository.UserRepository;
+import com.ankara_gelinlik.service.UserService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-
-import java.security.Principal;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 @RequestMapping("/user")
 public class UserController {
 
-    private final YoneticiService yoneticiService;
-    private final PasswordEncoder passwordEncoder;
+    private final UserRepository userRepository;
+    private final UserService userService;
 
-    public UserController(YoneticiService yoneticiService, PasswordEncoder passwordEncoder) {
-        this.yoneticiService = yoneticiService;
-        this.passwordEncoder = passwordEncoder;
+    public UserController(UserRepository userRepository,
+                          UserService userService) {
+        this.userRepository = userRepository;
+        this.userService = userService;
     }
 
-    @GetMapping("/dashboard")
-    public String dashboard(Model model, Principal principal) {
-        model.addAttribute("email", principal.getName());
-        return "user/dashboard";
-    }
+    // Profil sayfası
+    @GetMapping("/profile")
+    public String profile(@AuthenticationPrincipal UserDetails userDetails, Model model) {
+        String email = userDetails.getUsername();
 
-    @GetMapping("/change-password")
-    public String changePasswordForm(Model model, Principal principal) {
-        model.addAttribute("email", principal.getName());
-        model.addAttribute("passwordForm", new PasswordForm());
-        return "user/change-password";
-    }
-
-    @PostMapping("/change-password")
-    public String changePassword(@ModelAttribute("passwordForm") PasswordForm form,
-                                 Principal principal, Model model) {
-        String email = principal.getName();
-        Yonetici yonetici = yoneticiService.findByEmail(email)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı: " + email));
+        model.addAttribute("user", user);
+        return "user/profile";
+    }
 
-        if (!passwordEncoder.matches(form.getOldPassword(), yonetici.getSifre())) {
-            model.addAttribute("error", "Mevcut şifreniz yanlış.");
-            return "user/change-password";
-        }
-        if (!form.getNewPassword().equals(form.getConfirmPassword())) {
-            model.addAttribute("error", "Yeni şifre ile tekrar şifre eşleşmiyor.");
-            return "user/change-password";
-        }
-
-        yonetici.setSifre(passwordEncoder.encode(form.getNewPassword()));
-        yoneticiService.save(yonetici);
-
-        model.addAttribute("success", "Şifre başarıyla değiştirildi.");
+    // Şifre değiştirme sayfası
+    @GetMapping("/change-password")
+    public String changePasswordPage() {
         return "user/change-password";
     }
+
+    // Şifre değiştirme işlemi
+    @PostMapping("/change-password")
+    public String changePassword(@AuthenticationPrincipal UserDetails userDetails,
+                                 @RequestParam String oldPassword,
+                                 @RequestParam String newPassword,
+                                 RedirectAttributes redirectAttributes) {
+
+        String email = userDetails.getUsername();
+        try {
+            userService.changePassword(email, oldPassword, newPassword);
+            redirectAttributes.addFlashAttribute("successMessage", "Şifreniz başarıyla değiştirildi.");
+            return "redirect:/user/profile";
+        } catch (RuntimeException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+            return "redirect:/user/change-password";
+        }
+    }
+
 }

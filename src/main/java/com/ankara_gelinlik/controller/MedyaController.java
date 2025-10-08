@@ -3,26 +3,33 @@ package com.ankara_gelinlik.controller;
 import com.ankara_gelinlik.dto.MedyaDTO;
 import com.ankara_gelinlik.entity.Medya;
 import com.ankara_gelinlik.service.MedyaService;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/medya")
 public class MedyaController {
 
-    @Autowired
-    private MedyaService medyaService;
+    private final MedyaService medyaService;
+    private static final Logger logger = LoggerFactory.getLogger(MedyaController.class);
 
-    // Tüm medyaları getir
-    @GetMapping
-    public List<Medya> getAllMedya() {
-        return medyaService.getAllMedya();
+    public MedyaController(MedyaService medyaService) {
+        this.medyaService = medyaService;
     }
 
-    // ID ile medya getir
+    @GetMapping
+    public ResponseEntity<List<Medya>> getAllMedya() {
+        return ResponseEntity.ok(medyaService.getAllMedya());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Medya> getMedyaById(@PathVariable Long id) {
         return medyaService.getMedyaById(id)
@@ -30,27 +37,34 @@ public class MedyaController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // Yeni medya oluştur
-    @PostMapping
-    public Medya createMedya(@RequestBody MedyaDTO medyaDTO) {
-        System.out.println("POST geldi: " + medyaDTO); // 🔹 POST isteği logu
-        Medya medya = medyaService.createMedya(medyaDTO);
-        System.out.println("Kaydedilecek Medya: " + medya); // 🔹 DB kaydı logu
-        return medya;
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> createMedya(
+            @RequestParam("baslik") String baslik,
+            @RequestParam("aciklama") String aciklama,
+            @RequestPart("file") MultipartFile file) throws IOException {
+
+        MedyaDTO medyaDTO = new MedyaDTO();
+        medyaDTO.setBaslik(baslik);
+        medyaDTO.setAciklama(aciklama);
+
+        Medya medya = medyaService.createMedya(medyaDTO, file);
+        return ResponseEntity.ok(medya);
     }
 
-    // Mevcut medya güncelle
+
     @PutMapping("/{id}")
-    public ResponseEntity<Medya> updateMedya(@PathVariable Long id, @RequestBody MedyaDTO medyaDTO) {
+    public ResponseEntity<?> updateMedya(
+            @PathVariable Long id,
+            @RequestBody @Valid MedyaDTO medyaDTO) {
         return medyaService.updateMedya(id, medyaDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // Medya sil
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteMedya(@PathVariable Long id) {
         medyaService.deleteMedya(id);
         return ResponseEntity.noContent().build();
     }
 }
+

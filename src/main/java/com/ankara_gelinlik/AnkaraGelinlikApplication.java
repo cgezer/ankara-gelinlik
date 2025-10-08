@@ -17,21 +17,23 @@ public class AnkaraGelinlikApplication {
     }
 
     @Bean
-    public CommandLineRunner init(YoneticiRepository yoneticiRepository, PasswordEncoder passwordEncoder) {
+    public CommandLineRunner createDefaultAdmin(YoneticiRepository repo, PasswordEncoder encoder) {
         return args -> {
-            String adminEmail = "admin@example.com";
-            if (yoneticiRepository.findByEmail(adminEmail).isEmpty()) {
+            String email = "admin@example.com";
+            if (repo.findByEmail(email).isEmpty()) {
                 Yonetici admin = new Yonetici();
                 admin.setAd("Admin");
                 admin.setSoyad("User");
-                admin.setEmail(adminEmail);
-                admin.setRole("ADMIN"); // DB'ye "ADMIN" kaydediyoruz (SecurityConfig bunu ROLE_ADMIN olarak kullanacak)
-                admin.setSifre(passwordEncoder.encode("123456"));
-                yoneticiRepository.save(admin);
-                System.out.println("🔧 Admin created: " + adminEmail);
+                admin.setEmail(email);
+                admin.setSifre(encoder.encode("123")); // hashlenmiş şifre
+                admin.setRole("ROLE_ADMIN");
+                repo.save(admin);
+                System.out.println("Default admin created: " + email + " / 123");
             } else {
-                System.out.println("ℹ️ Admin already exists: " + adminEmail);
+                System.out.println("Admin already exists: " + email);
             }
         };
     }
+
+
 }

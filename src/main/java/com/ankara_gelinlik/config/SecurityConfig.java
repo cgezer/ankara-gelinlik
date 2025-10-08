@@ -1,32 +1,26 @@
 package com.ankara_gelinlik.config;
 
-import com.ankara_gelinlik.repository.YoneticiRepository;
+import com.ankara_gelinlik.security.CustomUserDetailsService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
-
 @Configuration
-@EnableWebSecurity
 public class SecurityConfig {
 
-    private final YoneticiRepository yoneticiRepository;
+    private final CustomUserDetailsService userDetailsService;
 
-    public SecurityConfig(YoneticiRepository yoneticiRepository) {
-        this.yoneticiRepository = yoneticiRepository;
+    public SecurityConfig(CustomUserDetailsService userDetailsService) {
+        this.userDetailsService = userDetailsService;
     }
 
     @Bean
@@ -35,39 +29,40 @@ public class SecurityConfig {
     }
 
     @Bean
-    public UserDetailsService userDetailsService() {
-        return username -> yoneticiRepository.findByEmail(username)
-                .map(this::buildUserDetails)
-                .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı: " + username));
-    }
-
-    private UserDetails buildUserDetails(com.ankara_gelinlik.entity.Yonetici y) {
-        String rawRole = (y.getRole() == null) ? "USER" : y.getRole();
-        List<GrantedAuthority> authorities = Arrays.stream(rawRole.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(s -> s.startsWith("ROLE_") ? s : "ROLE_" + s)
-                .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toList());
-
-        GrantedAuthority[] authArray = authorities.toArray(new GrantedAuthority[0]);
-
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(y.getEmail())
-                .password(y.getSifre())
-                .authorities(authArray)
-                .build();
+    public DaoAuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder());
+        return authProvider;
     }
 
     @Bean
-    public AuthenticationSuccessHandler mySuccessHandler() {
+    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
+        AuthenticationManagerBuilder authBuilder =
+                http.getSharedObject(AuthenticationManagerBuilder.class);
+        authBuilder.authenticationProvider(authenticationProvider());
+        return authBuilder.build();
+    }
+
+    // ✅ Login sonrası doğru yönlendirme
+    @Bean
+    public AuthenticationSuccessHandler myAuthenticationSuccessHandler() {
         return (request, response, authentication) -> {
+            response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            response.setHeader("Pragma", "no-cache");
+            response.setDateHeader("Expires", 0);
+
             boolean isAdmin = authentication.getAuthorities().stream()
                     .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            boolean isUser = authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_USER"));
+
             if (isAdmin) {
-                response.sendRedirect("/yonetici/list");
+                response.sendRedirect(request.getContextPath() + "/yonetici/list");
+            } else if (isUser) {
+                response.sendRedirect(request.getContextPath() + "/user/profile");
             } else {
-                response.sendRedirect("/user/dashboard");
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Geçersiz rol ile giriş yapıldı");
             }
         };
     }
@@ -75,27 +70,36 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable()) // POST test için CSRF devre dışı
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/h2-console/**"))
+
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/login", "/css/**", "/js/**", "/images/**").permitAll()
                         .requestMatchers("/yonetici/**").hasRole("ADMIN")
-                        .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/medya/**").permitAll() // ⚡ POST test için izin verdik
+                        .requestMatchers("/user/**").hasAnyRole("ADMIN", "USER")
+                        .requestMatchers("/profile/**", "/password/change/**", "/user/change-password").hasAnyRole("ADMIN", "USER")
                         .anyRequest().authenticated()
                 )
+
                 .formLogin(form -> form
                         .loginPage("/login")
+                        .loginProcessingUrl("/login") // ✅ form action ile aynı olmalı
                         .usernameParameter("email")
-                        .passwordParameter("password")
-                        .successHandler(mySuccessHandler())
-                        .failureUrl("/login?error")
+                        .passwordParameter("sifre")
+                        .successHandler(myAuthenticationSuccessHandler())
+                        .failureUrl("/login?error=true")
                         .permitAll()
                 )
+
                 .logout(logout -> logout
+                        // ✅ hem GET hem POST logout izni verildi
                         .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
-                        .logoutSuccessUrl("/login?logout")
+                        .logoutSuccessUrl("/login?logout=true")
+                        .invalidateHttpSession(true)
+                        .clearAuthentication(true)
                         .permitAll()
-                );
+                )
+
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
 
         return http.build();
     }
