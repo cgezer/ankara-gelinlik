@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Şifre Değiştir</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<h1>Şifre Değiştir</h1>
+
+<form th:action="@{/user/change-password}" method="post">
+    <input type="hidden" name="email" th:value="${email}" />
+
+    <div>
+        <label>Mevcut Şifre:</label>
+        <input type="password" name="oldPassword" required />
+    </div>
+    <div>
+        <label>Yeni Şifre:</label>
+        <input type="password" name="newPassword" required />
+    </div>
+
+    <div th:if="${param.error}">
+        <p style="color:red;" th:text="${param.error}"></p>
+    </div>
+
+    <button type="submit">Şifreyi Değiştir</button>
+</form>
+
+<a th:href="@{/user/list}">Geri Dön</a>
+
+</body>
+</html>
