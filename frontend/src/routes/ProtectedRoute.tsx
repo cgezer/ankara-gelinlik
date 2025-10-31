@@ -1,27 +1,30 @@
 import React from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
-interface ProtectedRouteProps {
-  allowedRoles?: string[]; // Belirtilmezse sadece token kontrolü
-  children: React.ReactNode;
+interface Props {
+  allowedRoles?: string[];
+  children?: React.ReactNode;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, children }) => {
-  const token = localStorage.getItem("token");
-  const role = localStorage.getItem("role");
+const ProtectedRoute: React.FC<Props> = ({ allowedRoles, children }) => {
+  const { isAuthenticated, userRole, loading } = useAuth();
 
-  // 🔹 Token yoksa login sayfasına yönlendir
-  if (!token) {
+  // still checking auth status
+  if (isAuthenticated === null || loading) {
+    return <div style={{ textAlign: "center", marginTop: 100 }}>Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // 🔹 Rol kontrolü varsa ve kullanıcı yetkisizse login sayfasına yönlendir
-  if (allowedRoles && role && !allowedRoles.includes(role)) {
-    return <Navigate to="/login" replace />;
+  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
+    // Not authorized for this route
+    return <Navigate to="/profile" replace />;
   }
 
-  // 🔹 Yetkili ise children render edilir
-  return <>{children}</>;
+  return children ? <>{children}</> : <Outlet />;
 };
 
 export default ProtectedRoute;

@@ -1,52 +1,93 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import UserList from "./pages/Users/UserList";
-import Login from "./pages/Login";
+import MedyaList from "./pages/MedyaList";
 import Profile from "./pages/Profile";
+import Login from "./pages/Login";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import { authService } from "./auth/authService";
+import { ToastProvider } from "./context/ToastContext";
 
 const App: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!authService.getToken());
+
+  useEffect(() => {
+    const initAuth = async () => {
+      const success = await authService.silentRefresh();
+      setLoading(false);
+      setIsAuthenticated(success);
+
+      if (!success) {
+        // Kullanıcı login değilse login sayfasına yönlendir
+        if (window.location.pathname !== "/login") {
+          window.history.replaceState({}, "", "/login");
+        }
+      }
+      // Login başarılıysa mevcut path korunur, redirect yok
+    };
+
+    initAuth();
+  }, []);
+
+  if (loading) {
+    return <div style={{ textAlign: "center", marginTop: "100px" }}>Loading...</div>;
+  }
+
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Login sayfası herkese açık */}
-        <Route path="/login" element={<Login />} />
-
-        {/* Layout içindeki sayfalar protected */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <AppLayout />
-            </ProtectedRoute>
-          }
-        >
-          {/* Admin kullanıcılar sadece /users sayfasına erişebilir */}
+    <ToastProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Login sayfası */}
           <Route
-            path="users"
+            path="/login"
             element={
-              <ProtectedRoute allowedRoles={["ROLE_ADMIN"]}>
-                <UserList />
-              </ProtectedRoute>
+              isAuthenticated ? <Navigate to={window.location.pathname !== "/login" ? window.location.pathname : "/profile"} replace /> : <Login />
             }
           />
 
-          {/* Hem admin hem normal kullanıcılar profile sayfasına erişebilir */}
+          {/* Protected Routes */}
           <Route
-            path="profile"
+            path="/"
             element={
-              <ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_USER"]}>
-                <Profile />
+              <ProtectedRoute loading={loading} allowedRoles={["ROLE_ADMIN", "ROLE_USER"]}>
+                <AppLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route
+              path="users"
+              element={
+                <ProtectedRoute allowedRoles={["ROLE_ADMIN"]} loading={loading}>
+                  <UserList />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="medya"
+              element={
+                <ProtectedRoute allowedRoles={["ROLE_ADMIN"]} loading={loading}>
+                  <MedyaList />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="profile"
+              element={
+                <ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_USER"]} loading={loading}>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route index element={<Navigate to="/profile" replace />} />
+          </Route>
 
-          {/* "/" path için redirect */}
-          <Route index element={<Navigate to="/profile" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+          {/* Catch-all */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </ToastProvider>
   );
 };
 

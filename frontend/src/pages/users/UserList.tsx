@@ -1,6 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { Table, message, Spin, Button, Modal, Form, Input, Select } from "antd";
-import api from "../../api/axiosConfig"; // ✅ Ortak axios instance kullanılıyor
+import {
+  Table,
+  Button,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Tag,
+  Popconfirm,
+  Tabs,
+  Card,
+  Space,
+  Tooltip,
+} from "antd";
+import { UserAddOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import api from "../../api/axiosConfig";
+import { useToast } from "../../context/ToastContext";
 
 interface User {
   id: number;
@@ -8,7 +23,7 @@ interface User {
   soyad: string;
   email: string;
   role: string;
-  sifre?: string; // sadece yeni eklemede kullanılır
+  sifre?: string;
 }
 
 const { Option } = Select;
@@ -18,201 +33,171 @@ const UserList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [searchText, setSearchText] = useState("");
   const [form] = Form.useForm();
+
+  const { showMessage } = useToast();
 
   useEffect(() => {
     fetchUsers();
+    // no toast on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 🔹 Kullanıcıları getir
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const email = localStorage.getItem("email"); // Şu anki kullanıcının maili
+      const email = localStorage.getItem("email"); // if you still use localStorage for email
       const response = await api.get(`/yonetici/api/users?currentUserEmail=${email}`);
       setUsers(response.data);
     } catch (error: any) {
-      console.error("Kullanıcılar alınamadı:", error);
-      message.error(error.response?.data?.error || "Kullanıcılar yüklenemedi");
+      showMessage("error", error.response?.data?.error || "Kullanıcılar yüklenemedi");
     } finally {
       setLoading(false);
     }
   };
 
-  // 🔹 Kullanıcı sil
-  const handleDelete = async (id: number) => {
-    Modal.confirm({
-      title: "Kullanıcıyı silmek istediğinize emin misiniz?",
-      okText: "Evet",
-      cancelText: "Hayır",
-      onOk: async () => {
-        try {
-          await api.delete(`/yonetici/api/users/${id}`);
-          message.success("Kullanıcı silindi");
-          fetchUsers();
-        } catch (error: any) {
-          console.error("Silme hatası:", error);
-          message.error(error.response?.data?.error || "Silme işlemi başarısız");
-        }
-      },
-    });
+  const confirmDelete = async (id: number) => {
+    try {
+      await api.delete(`/yonetici/api/users/${id}`);
+      showMessage("success", "Kullanıcı silindi");
+      fetchUsers();
+    } catch (error: any) {
+      showMessage("error", error.response?.data?.error || "Silme işlemi başarısız");
+    }
   };
 
-  // 🔹 Kullanıcı düzenleme
-  const handleEdit = (user: User) => {
-    setEditingUser(user);
-    form.setFieldsValue(user);
-    setModalVisible(true);
-  };
-
-  // 🔹 Yeni kullanıcı ekleme veya düzenleme kaydetme
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
       if (editingUser) {
-        // Mevcut kullanıcıyı güncelle
         await api.put(`/yonetici/api/users/${editingUser.id}`, values);
-        message.success("Kullanıcı güncellendi");
+        showMessage("success", "Kullanıcı güncellendi");
       } else {
-        // Yeni kullanıcı oluştur
         await api.post(`/yonetici/api/users`, values);
-        message.success("Yeni kullanıcı eklendi");
+        showMessage("success", "Yeni kullanıcı eklendi");
       }
       setModalVisible(false);
       setEditingUser(null);
       form.resetFields();
       fetchUsers();
     } catch (error: any) {
-      console.error("Kayıt işlemi hatası:", error);
-      message.error(error.response?.data?.error || "İşlem başarısız");
+      showMessage("error", error.response?.data?.error || "İşlem başarısız");
     }
   };
 
-  // 🔹 Tablo sütunları
+  const handleEdit = (user: User) => {
+    setEditingUser(user);
+    form.setFieldsValue(user);
+    setModalVisible(true);
+  };
+
   const columns = [
     { title: "Ad", dataIndex: "ad", key: "ad" },
     { title: "Soyad", dataIndex: "soyad", key: "soyad" },
     { title: "Email", dataIndex: "email", key: "email" },
-    { title: "Rol", dataIndex: "role", key: "role" },
+    {
+      title: "Rol",
+      dataIndex: "role",
+      key: "role",
+      render: (role: string) => (role === "ROLE_ADMIN" ? <Tag color="geekblue">Admin</Tag> : <Tag color="green">User</Tag>),
+    },
     {
       title: "İşlemler",
       key: "actions",
       render: (_: any, record: User) => (
-        <>
-          <Button type="link" onClick={() => handleEdit(record)}>
-            Düzenle
-          </Button>
-          <Button type="link" danger onClick={() => handleDelete(record.id)}>
-            Sil
-          </Button>
-        </>
+        <Space>
+          <Tooltip title="Kullanıcı güncelle">
+            <Button type="text" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
+          </Tooltip>
+          <Popconfirm title="Bu kullanıcıyı silmek istiyor musunuz?" onConfirm={() => confirmDelete(record.id)} okText="Evet" cancelText="Hayır">
+            <Tooltip title="Kullanıcı sil">
+              <Button type="text" danger icon={<DeleteOutlined />} />
+            </Tooltip>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
 
-  // 🔹 Role göre kullanıcıları ayır
-  const adminUsers = users.filter((u) => u.role === "ROLE_ADMIN");
-  const normalUsers = users.filter((u) => u.role === "ROLE_USER");
+  const filteredUsers = users.filter(
+    (u) => u.ad.toLowerCase().includes(searchText.toLowerCase()) || u.soyad.toLowerCase().includes(searchText.toLowerCase()) || u.email.toLowerCase().includes(searchText.toLowerCase())
+  );
+
+  const adminUsers = filteredUsers.filter((u) => u.role === "ROLE_ADMIN");
+  const normalUsers = filteredUsers.filter((u) => u.role === "ROLE_USER");
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h2>Yönetim Paneli</h2>
-
-      <Button
-        type="primary"
-        style={{ marginBottom: 16 }}
-        onClick={() => {
-          setModalVisible(true);
-          setEditingUser(null);
-          form.resetFields();
-        }}
+    <div style={{ padding: "16px" }}>
+      <Card
+        title="👥 Kullanıcı Yönetimi"
+        extra={
+          <Space>
+            <Input prefix={<SearchOutlined />} placeholder="Ara..." value={searchText} onChange={(e) => setSearchText(e.target.value)} allowClear style={{ width: 220 }} />
+            <Tooltip title="Kullanıcıları yenile">
+              <Button type="default" icon={<ReloadOutlined />} onClick={fetchUsers}>
+                Yenile
+              </Button>
+            </Tooltip>
+            <Tooltip title="Yeni kullanıcı ekle">
+              <Button
+                type="primary"
+                icon={<UserAddOutlined />}
+                onClick={() => {
+                  setEditingUser(null);
+                  form.resetFields();
+                  setModalVisible(true);
+                }}
+              >
+                Yeni Kullanıcı
+              </Button>
+            </Tooltip>
+          </Space>
+        }
+        // antd v5 uyarısı: 'bordered' deprecated — saklayabilirsin ya da variant kullan
+        bordered={false}
+        style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
       >
-        Yeni Kullanıcı Ekle
-      </Button>
-
-      <h3>Admin Kullanıcılar</h3>
-      {loading ? (
-        <Spin />
-      ) : (
-        <Table
-          dataSource={adminUsers}
-          columns={columns}
-          rowKey="id"
-          pagination={{ pageSize: 5 }}
+        <Tabs
+          defaultActiveKey="admin"
+          items={[
+            {
+              key: "admin",
+              label: "Admin Kullanıcılar",
+              children: <Table dataSource={adminUsers} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 5 }} />,
+            },
+            {
+              key: "user",
+              label: "Normal Kullanıcılar",
+              children: <Table dataSource={normalUsers} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 5 }} />,
+            },
+          ]}
         />
-      )}
+      </Card>
 
-      <h3>Normal Kullanıcılar</h3>
-      {loading ? (
-        <Spin />
-      ) : (
-        <Table
-          dataSource={normalUsers}
-          columns={columns}
-          rowKey="id"
-          pagination={{ pageSize: 5 }}
-        />
-      )}
+      <div style={{ marginTop: 16, textAlign: "center" }}>
+        <Button onClick={() => showMessage("info", "Test toast!")}>Test Toast</Button>
+      </div>
 
-      {/* 🔹 Kullanıcı Ekle/Düzenle Modal */}
-      <Modal
-        title={editingUser ? "Kullanıcı Düzenle" : "Yeni Kullanıcı Ekle"}
-        open={modalVisible}
-        onOk={handleSave}
-        onCancel={() => {
-          setModalVisible(false);
-          setEditingUser(null);
-          form.resetFields();
-        }}
-        okText="Kaydet"
-        cancelText="İptal"
-      >
+      <Modal title={editingUser ? "Kullanıcı Düzenle" : "Yeni Kullanıcı Ekle"} open={modalVisible} onOk={handleSave} onCancel={() => { setModalVisible(false); setEditingUser(null); form.resetFields(); }} okText="Kaydet" cancelText="İptal">
         <Form form={form} layout="vertical">
-          <Form.Item
-            name="ad"
-            label="Ad"
-            rules={[{ required: true, message: "Ad giriniz" }]}
-          >
+          <Form.Item name="ad" label="Ad" rules={[{ required: true, message: "Ad giriniz" }]}>
             <Input />
           </Form.Item>
-
-          <Form.Item
-            name="soyad"
-            label="Soyad"
-            rules={[{ required: true, message: "Soyad giriniz" }]}
-          >
+          <Form.Item name="soyad" label="Soyad" rules={[{ required: true, message: "Soyad giriniz" }]}>
             <Input />
           </Form.Item>
-
-          <Form.Item
-            name="email"
-            label="Email"
-            rules={[
-              { required: true, message: "Email giriniz" },
-              { type: "email", message: "Geçerli bir email giriniz" },
-            ]}
-          >
+          <Form.Item name="email" label="Email" rules={[{ required: true, message: "Email giriniz" }, { type: "email", message: "Geçerli bir email giriniz" }]}>
             <Input />
           </Form.Item>
-
-          <Form.Item
-            name="role"
-            label="Rol"
-            rules={[{ required: true, message: "Rol seçiniz" }]}
-          >
+          <Form.Item name="role" label="Rol" rules={[{ required: true, message: "Rol seçiniz" }]}>
             <Select placeholder="Rol seçiniz">
               <Option value="ROLE_ADMIN">Admin</Option>
               <Option value="ROLE_USER">User</Option>
             </Select>
           </Form.Item>
-
-          {/* Yeni kullanıcı ekleniyorsa şifre alanı gösterilir */}
           {!editingUser && (
-            <Form.Item
-              name="sifre"
-              label="Şifre"
-              rules={[{ required: true, message: "Şifre giriniz" }]}
-            >
+            <Form.Item name="sifre" label="Şifre" rules={[{ required: true, message: "Şifre giriniz" }]}>
               <Input.Password />
             </Form.Item>
           )}

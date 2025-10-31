@@ -1,54 +1,51 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "antd/dist/reset.css";
 
-import AppLayout from "./layout/AppLayout"; // Düzeltilmiş yol
-import Login from "./pages/Login"; // Mevcut yapıya uygun
-import UserList from "./pages/Users/UserList"; // Mevcut yapıya uygun
-import MedyaList from "./pages/MedyaList"; // Mevcut
-import Profile from "./pages/Profile"; // Mevcut
-import ProtectedRoute from "./routes/ProtectedRoute"; // Mevcut
+import AppLayout from "./layout/AppLayout";
+import Login from "./pages/Login";
+import UserList from "./pages/Users/UserList";
+import Profile from "./pages/Profile";
+import ProtectedRoute from "./routes/ProtectedRoute";
 
-const Home = () => <h2>Ana Sayfa</h2>;
+import { AuthProvider } from "./context/AuthContext";
+import { ToastProvider } from "./context/ToastContext";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<AppLayout />}>
-          <Route index element={<Home />} />
+    <AuthProvider>
+      <ToastProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
 
-          <Route
-            path="users"
-            element={
-              <ProtectedRoute allowedRoles={["ROLE_ADMIN"]}>
-                <UserList />
-              </ProtectedRoute>
-            }
-          />
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<AppLayout />}>
+                <Route index element={<Navigate to="/profile" replace />} />
+                <Route
+                  path="users"
+                  element={
+                    <ProtectedRoute allowedRoles={["ROLE_ADMIN"]}>
+                      <UserList />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="profile"
+                  element={
+                    <ProtectedRoute allowedRoles={["ROLE_USER", "ROLE_ADMIN"]}>
+                      <Profile />
+                    </ProtectedRoute>
+                  }
+                />
+              </Route>
+            </Route>
 
-          <Route
-            path="medya"
-            element={
-              <ProtectedRoute allowedRoles={["ROLE_ADMIN"]}>
-                <MedyaList />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="profile"
-            element={
-              <ProtectedRoute allowedRoles={["ROLE_USER", "ROLE_ADMIN"]}>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-        </Route>
-
-        <Route path="/login" element={<Login />} />
-      </Routes>
-    </BrowserRouter>
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
+    </AuthProvider>
   </React.StrictMode>
 );
