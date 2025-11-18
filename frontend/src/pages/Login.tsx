@@ -1,83 +1,52 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Form, Input, Button, message } from "antd";
-import api from "../api/axiosConfig";
+import { authService } from "../auth/authService";
 import { useAuth } from "../context/AuthContext";
-
-interface LoginForm {
-  email: string;
-  password: string;
-}
+import { Form, Input, Button, message, Card } from "antd";
 
 const Login: React.FC = () => {
-  const [loading, setLoading] = useState(false);
+  const { fetchUser } = useAuth(); // artık refreshUser değil
   const navigate = useNavigate();
-  const { setAuthFromLogin, refreshAuth } = useAuth();
+  const [loading, setLoading] = useState(false);
 
-  const redirectUser = (role: string) => {
-    switch (role) {
-      case "ROLE_ADMIN":
-        navigate("/users");
-        break;
-      case "ROLE_USER":
-        navigate("/profile");
-        break;
-      default:
-        navigate("/profile");
-    }
-  };
-
-  const onFinish = async (values: LoginForm) => {
+  const onFinish = async (values: { email: string; password: string }) => {
     setLoading(true);
     try {
-      // axiosConfig has withCredentials true — backend will set HttpOnly cookie
-      const res = await api.post("/api/auth/login", values);
-      const { token, role, email } = res.data || {};
-
-      // Set local authService + update context
-      if (token && role) {
-        setAuthFromLogin(token, role, email);
-        // Optionally call refreshAuth to verify cookie/server side state (not strictly required)
-        await refreshAuth();
-        message.success("Giriş başarılı!");
-        redirectUser(role);
-      } else {
-        // fallback: still refresh to see if cookie set
-        const ok = await refreshAuth();
-        if (ok) {
-          message.success("Giriş başarılı!");
-          redirectUser((await api.post("/api/auth/refresh").then(r => r.data.role).catch(()=> "ROLE_USER")) as string);
-        } else {
-          message.error("Giriş başarılı ancak token eksik.");
-        }
-      }
-    } catch (err: any) {
-      console.error(err);
-      message.error(err.response?.data?.error || "Giriş başarısız!");
+      await authService.login(values.email, values.password);
+      await fetchUser(); // burada fetchUser kullan
+      navigate("/users");
+      message.success("Giriş başarılı");
+    } catch (err) {
+      message.error("Giriş başarısız. Bilgilerinizi kontrol edin.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: "50px auto" }}>
-      <h2>Login</h2>
-      <Form name="loginForm" onFinish={onFinish} layout="vertical">
-        <Form.Item label="Email" name="email" rules={[{ required: true, message: "Email giriniz" }]}>
-          <Input type="email" />
+    <Card title="Login" style={{ maxWidth: 400, margin: "50px auto" }}>
+      <Form onFinish={onFinish} layout="vertical">
+        <Form.Item
+          name="email"
+          label="Email"
+          rules={[{ required: true, message: "Email gerekli" }]}
+        >
+          <Input />
         </Form.Item>
-
-        <Form.Item label="Password" name="password" rules={[{ required: true, message: "Şifre giriniz" }]}>
+        <Form.Item
+          name="password"
+          label="Password"
+          rules={[{ required: true, message: "Şifre gerekli" }]}
+        >
           <Input.Password />
         </Form.Item>
-
         <Form.Item>
           <Button type="primary" htmlType="submit" loading={loading} block>
-            Giriş Yap
+            Login
           </Button>
         </Form.Item>
       </Form>
-    </div>
+    </Card>
   );
 };
 

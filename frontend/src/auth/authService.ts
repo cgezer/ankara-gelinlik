@@ -1,79 +1,54 @@
-import api from "../api/axiosConfig";
+import axios from "axios";
 
-type TokenData = {
-  accessToken: string;
-  role: string;
-  email: string;
-};
+const api = axios.create({
+  baseURL: "http://localhost:8080",
+  withCredentials: true, // HTTP-only cookie gönderimi için
+});
 
-let tokenData: TokenData | null = null;
-
-// 🔹 Global toast fonksiyonu
-let toastFn: ((type: "success" | "error" | "info" | "warning", msg: string) => void) | null = null;
-
-export const setGlobalToast = (fn: typeof toastFn) => {
-  toastFn = fn;
-};
-
-// 🔹 authService için kullanılacak toast
-export const showToast = (type: "success" | "error" | "info" | "warning", msg: string) => {
-  if (toastFn) toastFn(type, msg);
-  else console[type === "error" ? "error" : "log"](msg);
-};
+// 401 intercept + refresh mantığı
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        // refresh token çağrısı
+        await api.post("/auth/refresh", {}, { withCredentials: true });
+        // orijinal isteği tekrar dene
+        return api(originalRequest);
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const authService = {
-  setToken: (token: string) => {
-    if (!tokenData) tokenData = { accessToken: token, role: "", email: "" };
-    else tokenData.accessToken = token;
+  login: async (email: string, password: string) => {
+    const res = await api.post("/auth/login", { email, password });
+    // token artık cookie’de, frontend header’dan almak zorunda değil
+    return { email: res.data.email, role: res.data.role };
   },
-  getToken: (): string | null => tokenData?.accessToken || null,
 
-  setRole: (role: string) => {
-    if (!tokenData) tokenData = { accessToken: "", role, email: "" };
-    else tokenData.role = role;
+  refresh: async () => {
+    await api.post("/auth/refresh", {}, { withCredentials: true });
   },
-  getRole: (): string | null => tokenData?.role || null,
 
-  setEmail: (email: string) => {
-    if (!tokenData) tokenData = { accessToken: "", role: "", email };
-    else tokenData.email = email;
+  getCurrentUser: async () => {
+    const res = await api.get("/auth/me", { withCredentials: true });
+    return { email: res.data.email, role: res.data.role };
   },
-  getEmail: (): string | null => tokenData?.email || null,
+
+  getUsers: async () => {
+    const res = await api.get("/yonetici/api/users", { withCredentials: true });
+    return res.data;
+  },
 
   logout: async () => {
-    try {
-      await api.post("/api/auth/logout", {}, { withCredentials: true });
-      showToast("success", "Oturum kapatıldı.");
-    } catch (err) {
-      showToast("error", "Çıkış yapılırken bir hata oluştu");
-      console.warn("Logout sırasında hata:", err);
-    } finally {
-      tokenData = null;
-      window.location.href = "/login";
-    }
+    // opsiyonel: backend logout endpoint varsa burada çağrılabilir
   },
-
-  silentRefresh: async (): Promise<boolean> => {
-    try {
-      const res = await api.post("/api/auth/refresh", {}, { withCredentials: true });
-      const { token, role, email } = res.data;
-
-      if (!token) {
-        showToast("error", "Token yenilenemedi.");
-        return false;
-      }
-
-      authService.setToken(token);
-      authService.setRole(role);
-      authService.setEmail(email);
-
-      return true;
-    } catch (err: any) {
-      showToast("error", "Silent refresh başarısız oldu.");
-      console.warn("Silent refresh başarısız:", err.response?.data || err);
-      return false;
-    }
-  },
-
-  showToast, // 🔹 authService üzerinden direkt toast çağrılabilir
 };
+
+export default api;
