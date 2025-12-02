@@ -1,62 +1,56 @@
 // src/api/axiosConfig.ts
 import axios from "axios";
 
+export let backendAvailable = false;
+const IS_PROD = false;
+const BASE_URL = IS_PROD ? "https://api.meyda.com" : "";
+
 const api = axios.create({
-  baseURL: "http://localhost:8080",
-  withCredentials: true, // HTTP-only cookie gönderimi için
-  headers: {
-    "Content-Type": "application/json",
-  },
+  baseURL: BASE_URL || undefined,
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
 });
 
-// --- INTERCEPTOR: Token süresi dolduğunda refresh et ---
+let logoutHandler = () => {
+  window.location.href = "/login";
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const status = error?.response?.status;
 
-    // 401 ve retry edilmemişse
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (!backendAvailable) return Promise.reject(error);
+
+    if (status === 401 && originalRequest.url !== "/auth/refresh" && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      // Eğer /auth/refresh isteği değilse refresh token çağır
-      if (!originalRequest.url?.includes("/auth/refresh")) {
-        try {
-          await api.post("/auth/refresh", {}, { withCredentials: true });
-          return api(originalRequest); // orijinal isteği tekrar dene
-        } catch (err) {
-          return Promise.reject(err);
-        }
+      try {
+        await api.post("/auth/refresh", {}, { withCredentials: true });
+        return api(originalRequest);
+      } catch {
+        logoutHandler();
+        return Promise.reject(error);
       }
     }
 
     return Promise.reject(error);
   }
-});
+);
 
-export const authService = {
-  login: async (email: string, password: string) => {
-    const res = await api.post("/auth/login", { email, password });
-    return { email: res.data.email, role: res.data.role };
-  },
+export const setLogoutHandler = (fn: () => void) => {
+  logoutHandler = fn;
+};
 
-  refresh: async () => {
-    await api.post("/auth/refresh", {}, { withCredentials: true });
-  },
-
-  getCurrentUser: async () => {
-    const res = await api.get("/auth/me", { withCredentials: true });
-    return { email: res.data.email, role: res.data.role };
-  },
-
-  getUsers: async () => {
-    const res = await api.get("/yonetici/api/users", { withCredentials: true });
-    return res.data;
-  },
-
-  logout: async () => {
-    // opsiyonel: backend logout endpoint varsa burada çağrılabilir
-  },
+export const checkBackend = async () => {
+  try {
+    await api.get("/auth/me", { withCredentials: true });
+    backendAvailable = true;
+  } catch (err: any) {
+    const status = err?.response?.status;
+    backendAvailable = status === 401 || status === 403;
+  }
 };
 
 export default api;

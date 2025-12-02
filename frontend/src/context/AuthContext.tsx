@@ -1,56 +1,78 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { authService } from "../auth/authService";
+// src/context/AuthContext.tsx
+import { createContext, useState, useEffect, useContext, ReactNode } from "react";
+import api, { setLogoutHandler, backendAvailable } from "../api/axiosConfig";
 
-interface User {
+interface UserType {
+  ad: string;
+  soyad: string;
   email: string;
   role: string;
 }
 
 interface AuthContextType {
-  user: User | null;
-  isLoading: boolean;
-  fetchUser: () => Promise<void>;
+  user: UserType | null;
+  authLoaded: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  authLoaded: false,
+  login: async () => {},
+  logout: async () => {},
+});
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<UserType | null>(null);
+  const [authLoaded, setAuthLoaded] = useState(false);
 
   const fetchUser = async () => {
+    if (!backendAvailable) {
+      setAuthLoaded(true);
+      return;
+    }
+
     try {
-      const currentUser = await authService.getCurrentUser();
-      setUser(currentUser);
-    } catch (err: any) {
-      if (err.response?.status === 401) {
-        try {
-          await authService.refresh();
-          const currentUser = await authService.getCurrentUser();
-          setUser(currentUser);
-        } catch (e) {
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
+      const res = await api.get("/auth/me", { withCredentials: true });
+
+      setUser({
+        ad: res.data.ad,
+        soyad: res.data.soyad,
+        email: res.data.email,
+        role: res.data.role,
+      });
+    } catch {
+      setUser(null);
+    } finally {
+      setAuthLoaded(true);
+    }
+  };
+
+  const login = async (email: string, password: string) => {
+    await api.post("/auth/login", { email, password }, { withCredentials: true });
+    await fetchUser();
+  };
+
+  const logout = async () => {
+    try {
+      await api.post("/auth/logout", {}, { withCredentials: true });
+      setUser(null);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   useEffect(() => {
-    fetchUser().finally(() => setIsLoading(false));
+    fetchUser();
+    setLogoutHandler(logout);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, fetchUser }}>
-      {!isLoading && children}
-      {isLoading && <div>Loading...</div>} {/* İstersen spinner component */}
+    <AuthContext.Provider value={{ user, authLoaded, login, logout }}>
+      {authLoaded ? children : <div>Loading...</div>}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
-  return context;
 };

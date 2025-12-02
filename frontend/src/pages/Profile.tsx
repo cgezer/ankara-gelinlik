@@ -107,7 +107,7 @@ const Profile: React.FC = () => {
                   label="Yeni Şifre"
                   rules={[
                     { required: true, message: "Yeni şifreyi girin" },
-                    { min: 6, message: "Şifre en az 6 karakter olmalı" },
+                    { min: 3, message: "Şifre en az 3 karakter olmalı" },
                   ]}
                 >
                   <Input.Password />
