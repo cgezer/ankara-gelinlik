@@ -1,6 +1,7 @@
 package com.ankara_gelinlik.dto;
 
 import com.ankara_gelinlik.entity.Yonetici;
+import com.ankara_gelinlik.enums.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -29,20 +30,39 @@ public class YoneticiDTO {
     @Email(message = "Geçerli bir email giriniz")
     private String email;
 
-    @NotBlank(message = "Şifre boş olamaz")
+    // ŞİFRE ARTIK UPDATE İÇİN ZORUNLU DEĞİL
     @Size(min = 3, max = 100, message = "Şifre en az 3 karakter olmalıdır")
     private String sifre;
 
     @NotBlank(message = "Rol boş olamaz")
-    private String role;
+    private Role role;
 
-    // --- Entity'den DTO'ya kolay dönüşüm ---
-    public YoneticiDTO(Yonetici entity) {
-        this.id = entity.getId();
-        this.ad = entity.getAd();
-        this.soyad = entity.getSoyad();
-        this.email = entity.getEmail();
-        this.sifre = entity.getSifre();
-        this.role = entity.getRole();
+    // ---------------------------------
+    // ENTITY → DTO
+    // ---------------------------------
+    public static YoneticiDTO fromEntity(Yonetici entity) {
+        YoneticiDTO dto = new YoneticiDTO();
+        dto.setId(entity.getId());
+        dto.setAd(entity.getAd());
+        dto.setSoyad(entity.getSoyad());
+        dto.setEmail(entity.getEmail());
+        dto.setRole(entity.getRole());
+        // Şifre dönmez
+        return dto;
     }
+
+    // ---------------------------------
+    // DTO → ENTITY
+    // ---------------------------------
+    public Yonetici toEntity() {
+        Yonetici entity = new Yonetici();
+        entity.setId(this.id);
+        entity.setAd(this.ad);
+        entity.setSoyad(this.soyad);
+        entity.setEmail(this.email);
+        entity.setSifre(this.sifre);
+        entity.setRole(this.role);
+        return entity;
+    }
+
 }

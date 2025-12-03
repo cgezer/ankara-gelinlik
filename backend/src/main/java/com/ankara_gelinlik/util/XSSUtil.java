@@ -12,7 +12,6 @@ public class XSSUtil {
         dto.setAd(sanitize(dto.getAd()));
         dto.setSoyad(sanitize(dto.getSoyad()));
         dto.setEmail(sanitize(dto.getEmail()));
-        dto.setRole(sanitize(dto.getRole()));
     }
 
     // --- UserDTO için XSS temizleme ---

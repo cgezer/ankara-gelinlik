@@ -1,106 +1,82 @@
 package com.ankara_gelinlik.config;
 
-import com.ankara_gelinlik.security.CustomUserDetailsService;
-import jakarta.servlet.http.HttpServletResponse;
+import com.ankara_gelinlik.security.JwtAuthenticationFilter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
+@RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final CustomUserDetailsService userDetailsService;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    public SecurityConfig(CustomUserDetailsService userDetailsService) {
-        this.userDetailsService = userDetailsService;
-    }
+    private final boolean IS_PROD = false; // LOCAL → false, PROD → true
 
+    // Password encoder
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    // CORS configuration
     @Bean
-    public DaoAuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder());
-        return authProvider;
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of("http://localhost:5173"));  // Frontend URL
+        configuration.setAllowedMethods(List.of("GET"));  // İlk başta sadece GET metodunu ekle
+
+        // Ardından diğer metodları addAllowedMethod ile ekleyelim
+        configuration.addAllowedMethod("POST");
+        configuration.addAllowedMethod("PUT");
+        configuration.addAllowedMethod("DELETE");
+        configuration.addAllowedMethod("OPTIONS");
+
+        configuration.setAllowCredentials(true);
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of("Set-Cookie", "Authorization"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
-    @Bean
-    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
-        AuthenticationManagerBuilder authBuilder =
-                http.getSharedObject(AuthenticationManagerBuilder.class);
-        authBuilder.authenticationProvider(authenticationProvider());
-        return authBuilder.build();
-    }
-
-    // ✅ Login sonrası doğru yönlendirme
-    @Bean
-    public AuthenticationSuccessHandler myAuthenticationSuccessHandler() {
-        return (request, response, authentication) -> {
-            response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-            response.setHeader("Pragma", "no-cache");
-            response.setDateHeader("Expires", 0);
-
-            boolean isAdmin = authentication.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-            boolean isUser = authentication.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("ROLE_USER"));
-
-            if (isAdmin) {
-                response.sendRedirect(request.getContextPath() + "/yonetici/list");
-            } else if (isUser) {
-                response.sendRedirect(request.getContextPath() + "/user/profile");
-            } else {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Geçersiz rol ile giriş yapıldı");
-            }
-        };
-    }
-
+    // Security filter chain
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/h2-console/**"))
-
+                .csrf(csrf -> csrf.disable())  // CSRF'i devre dışı bırakıyoruz
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))  // CORS yapılandırması
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))  // Stateless session
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/css/**", "/js/**", "/images/**").permitAll()
-                        .requestMatchers("/yonetici/**").hasRole("ADMIN")
-                        .requestMatchers("/user/**").hasAnyRole("ADMIN", "USER")
-                        .requestMatchers("/profile/**", "/password/change/**", "/user/change-password").hasAnyRole("ADMIN", "USER")
-                        .anyRequest().authenticated()
+                        .requestMatchers("/auth/login", "/auth/refresh", "/auth/me", "/auth/logout").permitAll()  // Auth endpoints herkese açık
+                        .requestMatchers("/auth/medya/public/**").permitAll()  // Medya dosyaları herkese açık
+                        .requestMatchers("/auth/yonetici/**").hasAuthority("ROLE_ADMIN")  // Yöneticiler için korumalı alan
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()  // OPTIONS istekleri herkese açık
+                        .anyRequest().authenticated()  // Diğer tüm istekler kimlik doğrulaması gerektirir
                 )
-
-                .formLogin(form -> form
-                        .loginPage("/login")
-                        .loginProcessingUrl("/login") // ✅ form action ile aynı olmalı
-                        .usernameParameter("email")
-                        .passwordParameter("sifre")
-                        .successHandler(myAuthenticationSuccessHandler())
-                        .failureUrl("/login?error=true")
-                        .permitAll()
-                )
-
-                .logout(logout -> logout
-                        // ✅ hem GET hem POST logout izni verildi
-                        .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
-                        .logoutSuccessUrl("/login?logout=true")
-                        .invalidateHttpSession(true)
-                        .clearAuthentication(true)
-                        .permitAll()
-                )
-
-                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);  // JWT doğrulama filtresini ekliyoruz
 
         return http.build();
+    }
+
+    // Authentication manager
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration conf) throws Exception {
+        return conf.getAuthenticationManager();
     }
 }

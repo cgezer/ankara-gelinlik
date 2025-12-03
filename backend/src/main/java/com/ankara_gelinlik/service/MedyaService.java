@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,7 +26,9 @@ public class MedyaService {
 
     public MedyaService(MedyaRepository medyaRepository) throws IOException {
         this.medyaRepository = medyaRepository;
-        if (!Files.exists(uploadDir)) Files.createDirectories(uploadDir);
+        if (!Files.exists(uploadDir)) {
+            Files.createDirectories(uploadDir);
+        }
     }
 
     public List<Medya> getAllMedya() {
@@ -36,50 +39,45 @@ public class MedyaService {
         return medyaRepository.findById(id);
     }
 
-    public Medya createMedya(MedyaDTO medyaDTO, MultipartFile file) throws IOException {
-        // HTML injection önleme
-        String baslik = StringEscapeUtils.escapeHtml4(medyaDTO.getBaslik());
-        String aciklama = StringEscapeUtils.escapeHtml4(medyaDTO.getAciklama());
-
-        // Dosya adı ve tür kontrolü
-        String originalFilename = Paths.get(file.getOriginalFilename()).getFileName().toString();
-        if (!isAllowedFileType(originalFilename, file.getContentType()))
-            throw new IllegalArgumentException("Geçersiz dosya türü: " + originalFilename);
-
-        // UUID ile benzersiz dosya adı oluştur
-        String uniqueFilename = UUID.randomUUID() + "_" + originalFilename;
-
-        // Dosyayı uploads klasörüne kaydet
-        Path targetLocation = uploadDir.resolve(uniqueFilename);
-        Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
-
-        // Veritabanı kaydı
+    public Medya createMedya(MedyaDTO dto, MultipartFile file) throws IOException {
         Medya medya = new Medya();
-        medya.setBaslik(baslik);
-        medya.setAciklama(aciklama);
-        medya.setDosyaAdi(uniqueFilename);
-        medya.setDosyaYolu(targetLocation.toAbsolutePath().toString());
-        medya.setOlusturmaTarihi(LocalDateTime.now());
+        applyDtoToEntity(medya, dto);
 
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Dosya gereklidir.");
+        }
+
+        saveFileToMedya(medya, file);
+        medya.setOlusturmaTarihi(LocalDateTime.now());
         return medyaRepository.save(medya);
     }
 
-    public Optional<Medya> updateMedya(Long id, MedyaDTO medyaDTO) {
-        return medyaRepository.findById(id).map(medya -> {
-            medya.setBaslik(StringEscapeUtils.escapeHtml4(medyaDTO.getBaslik()));
-            medya.setAciklama(StringEscapeUtils.escapeHtml4(medyaDTO.getAciklama()));
-            if (medyaDTO.getDosyaAdi() != null && medyaDTO.getDosyaYolu() != null) {
-                medya.setDosyaAdi(medyaDTO.getDosyaAdi());
-                medya.setDosyaYolu(medyaDTO.getDosyaYolu());
+    public Optional<Medya> updateMedya(Long id, MedyaDTO dto, MultipartFile file) throws IOException {
+        return medyaRepository.findById(id).map(existing -> {
+            applyDtoToEntity(existing, dto);
+
+            if (file != null && !file.isEmpty()) {
+                try {
+                    // eski dosyayı sil
+                    if (existing.getDosyaYolu() != null) {
+                        Files.deleteIfExists(Paths.get(existing.getDosyaYolu()));
+                    }
+                    saveFileToMedya(existing, file);
+                } catch (IOException e) {
+                    logger.error("Dosya kaydedilemedi: {}", e.getMessage());
+                    throw new RuntimeException("Dosya kaydetme hatası");
+                }
             }
-            return medyaRepository.save(medya);
+            return medyaRepository.save(existing);
         });
     }
 
     public void deleteMedya(Long id) {
         medyaRepository.findById(id).ifPresent(medya -> {
             try {
-                Files.deleteIfExists(Paths.get(medya.getDosyaYolu()));
+                if (medya.getDosyaYolu() != null) {
+                    Files.deleteIfExists(Paths.get(medya.getDosyaYolu()));
+                }
             } catch (IOException e) {
                 logger.error("Dosya silinirken hata: {}", e.getMessage());
             }
@@ -87,23 +85,44 @@ public class MedyaService {
         });
     }
 
+    // ---------- yardımcı metodlar ----------
+
+    private void applyDtoToEntity(Medya medya, MedyaDTO dto) {
+        if (dto == null) return;
+
+        medya.setBaslik(dto.getBaslik() != null ? StringEscapeUtils.escapeHtml4(dto.getBaslik()) : null);
+        medya.setAciklama(dto.getAciklama() != null ? StringEscapeUtils.escapeHtml4(dto.getAciklama()) : null);
+        medya.setKategori(dto.getKategori());
+        medya.setStiller(dto.getStiller() != null ? dto.getStiller() : Collections.emptySet());
+        medya.setYeniSezon(dto.getYeniSezon() != null ? dto.getYeniSezon() : Boolean.FALSE);
+        medya.setIndirimli(dto.getIndirimli() != null ? dto.getIndirimli() : Boolean.FALSE);
+        medya.setAktif(dto.getAktif() != null ? dto.getAktif() : Boolean.TRUE);
+    }
+
+    private void saveFileToMedya(Medya medya, MultipartFile file) throws IOException {
+        String originalFilename = Paths.get(file.getOriginalFilename()).getFileName().toString();
+
+        if (!isAllowedFileType(originalFilename, file.getContentType())) {
+            throw new IllegalArgumentException("Geçersiz dosya türü: " + originalFilename);
+        }
+
+        String uniqueFilename = UUID.randomUUID() + "_" + originalFilename;
+        Path targetLocation = uploadDir.resolve(uniqueFilename);
+        Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
+
+        medya.setDosyaAdi(uniqueFilename);
+        medya.setDosyaYolu(targetLocation.toAbsolutePath().toString());
+    }
+
     private boolean isAllowedFileType(String filename, String mimeType) {
         String lowercase = filename.toLowerCase();
         String[] allowedExtensions = {".jpg", ".jpeg", ".png", ".gif", ".mp4"};
         boolean validExt = false;
-        for (String ext : allowedExtensions)
-            if (lowercase.endsWith(ext)) {
-                validExt = true;
-                break;
-            }
+        for (String ext : allowedExtensions) if (lowercase.endsWith(ext)) { validExt = true; break; }
 
         String[] allowedMimes = {"image/jpeg", "image/png", "image/gif", "video/mp4"};
         boolean validMime = false;
-        for (String mt : allowedMimes)
-            if (mt.equalsIgnoreCase(mimeType)) {
-                validMime = true;
-                break;
-            }
+        for (String mt : allowedMimes) if (mt.equalsIgnoreCase(mimeType)) { validMime = true; break; }
 
         return validExt && validMime;
     }

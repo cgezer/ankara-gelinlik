@@ -1,9 +1,10 @@
 package com.ankara_gelinlik.entity;
 
+import com.ankara_gelinlik.enums.Role;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "yonetici") // DB'deki tablo adı: yonetici (tekil)
+@Table(name = "yonetici")
 public class Yonetici {
 
     @Id
@@ -19,8 +20,9 @@ public class Yonetici {
     @Column(nullable = false)
     private String sifre;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String role; // örn: "ADMIN" veya "ROLE_ADMIN" veya "USER"
+    private Role role;
 
     public Yonetici() {}
 
@@ -40,6 +42,6 @@ public class Yonetici {
     public String getSifre() { return sifre; }
     public void setSifre(String sifre) { this.sifre = sifre; }
 
-    public String getRole() { return role; }
-    public void setRole(String role) { this.role = role; }
+    public Role getRole() { return role; }
+    public void setRole(Role role) { this.role = role; }
 }

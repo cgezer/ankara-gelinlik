@@ -1,6 +1,7 @@
 package com.ankara_gelinlik;
 
 import com.ankara_gelinlik.entity.Yonetici;
+import com.ankara_gelinlik.enums.Role;
 import com.ankara_gelinlik.repository.YoneticiRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +24,7 @@ public class CreateTestYonetici {
         yonetici.setSoyad("User");
         yonetici.setEmail("user@test.com");
         yonetici.setSifre(passwordEncoder.encode("123456")); // şifreyi encode ediyoruz
-        yonetici.setRole("ROLE_USER"); // rol USER
+        yonetici.setRole(Role.ROLE_USER); // ✅ enum tipi ile doğru kullanım
 
         yoneticiRepository.save(yonetici);
         System.out.println("Yeni yönetici oluşturuldu: " + yonetici.getEmail());

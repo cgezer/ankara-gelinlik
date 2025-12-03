@@ -45,6 +45,7 @@
                     </tr>
                     </thead>
                     <tbody>
+                    <!-- DB’den gelen tüm yöneticiler listelenecek -->
                     <tr th:each="y : ${yoneticiler}" th:attr="data-id=${y.id}">
                         <td th:text="${y.id}"></td>
                         <td th:text="${y.ad}"></td>
@@ -58,7 +59,7 @@
                                onclick="return confirm('Bu yöneticiyi silmek istediğinize emin misiniz?');">Sil</a>
                         </td>
                     </tr>
-                    <tr th:if="${#lists.isEmpty(yoneticiler)}">
+                    <tr th:if="${yoneticiler == null or #lists.isEmpty(yoneticiler)}">
                         <td colspan="6" class="text-center">Yönetici bulunamadı.</td>
                     </tr>
                     </tbody>
@@ -79,6 +80,7 @@
                     </tr>
                     </thead>
                     <tbody>
+                    <!-- DB’den gelen tüm kullanıcılar listelenecek -->
                     <tr th:each="u : ${kullanicilar}" th:attr="data-id=${u.id}">
                         <td th:text="${u.id}"></td>
                         <td th:text="${u.ad}"></td>
@@ -91,7 +93,7 @@
                                onclick="return confirm('Bu kullanıcıyı silmek istediğinize emin misiniz?');">Sil</a>
                         </td>
                     </tr>
-                    <tr th:if="${#lists.isEmpty(kullanicilar)}">
+                    <tr th:if="${kullanicilar == null or #lists.isEmpty(kullanicilar)}">
                         <td colspan="6" class="text-center">Kullanıcı bulunamadı.</td>
                     </tr>
                     </tbody>

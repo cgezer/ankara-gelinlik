@@ -19,16 +19,13 @@ const Profile: React.FC = () => {
   const [form] = Form.useForm();
 
   const fetchProfile = async () => {
-    console.log("[Profile] 🔄 Fetching profile...");
     setLoading(true);
     try {
       const res = await api.get("/api/users/me");
-      console.log("[Profile] ✅ Profile fetched:", res.data);
       setProfile(res.data);
-    } catch (err) {
-      console.error("[Profile] ❌ Fetch failed:", err);
+    } catch (err: any) {
+      console.error("[Profile] Fetch failed:", err);
       if (String(err).includes("401")) {
-        console.log("[Profile] ⚠️ Token expired, trying refresh...");
         await refreshUser();
       }
     } finally {
@@ -41,20 +38,18 @@ const Profile: React.FC = () => {
   }, []);
 
   const handlePasswordChange = async (values: { oldPassword: string; newPassword: string }) => {
-    console.log("[Profile] 🔐 Changing password...");
     try {
       await api.post("/api/users/change-password", values);
       message.success("Şifre başarıyla değiştirildi");
       form.resetFields();
       setFormVisible(false);
     } catch (err) {
-      console.error("[Profile] ❌ Password change failed:", err);
+      console.error("[Profile] Password change failed:", err);
       message.error("Şifre değiştirme başarısız");
     }
   };
 
   const handleLogout = async () => {
-    console.log("[Profile] 🚪 Logout clicked");
     await logout();
     message.info("Çıkış yapıldı");
     window.location.href = "/login";
@@ -62,66 +57,30 @@ const Profile: React.FC = () => {
 
   return (
     <div style={{ padding: 20, maxWidth: 700, margin: "0 auto" }}>
-      <Card title="Profil Bilgileri" loading={loading}>
-        {profile ? (
+      <Card
+        title="Profil Bilgileri"
+        extra={
+          <Button danger type="primary" onClick={handleLogout}>
+            Çıkış Yap
+          </Button>
+        }
+      >
+        {user ? (
           <>
-            <Descriptions bordered column={1}>
-              <Descriptions.Item label="Ad Soyad">
-                {profile.firstName} {profile.lastName}
-              </Descriptions.Item>
-              <Descriptions.Item label="Email">{profile.email}</Descriptions.Item>
-              <Descriptions.Item label="Rol">{profile.role}</Descriptions.Item>
-            </Descriptions>
+            <p><strong>Ad:</strong> {user.ad}</p>
+            <p><strong>Soyad:</strong> {user.soyad}</p>
+            <p><strong>Email:</strong> {user.email}</p>
+            <p><strong>Rol:</strong> {user.role}</p>
 
-            <div style={{ marginTop: 20 }}>
-              {!formVisible && (
-                <Button type="default" onClick={() => setFormVisible(true)}>
-                  Şifre Değiştir
-                </Button>
-              )}
-              <Button
-                danger
-                style={{ marginLeft: 10 }}
-                onClick={handleLogout}
-              >
-                Çıkış Yap
-              </Button>
-            </div>
-
-            {formVisible && (
-              <Form
-                form={form}
-                layout="vertical"
-                style={{ marginTop: 20 }}
-                onFinish={handlePasswordChange}
-              >
-                <Form.Item
-                  name="oldPassword"
-                  label="Mevcut Şifre"
-                  rules={[{ required: true, message: "Mevcut şifrenizi girin" }]}
-                >
-                  <Input.Password />
-                </Form.Item>
-                <Form.Item
-                  name="newPassword"
-                  label="Yeni Şifre"
-                  rules={[
-                    { required: true, message: "Yeni şifreyi girin" },
-                    { min: 3, message: "Şifre en az 3 karakter olmalı" },
-                  ]}
-                >
-                  <Input.Password />
-                </Form.Item>
-                <Button type="primary" htmlType="submit">
-                  Güncelle
-                </Button>
-              </Form>
-            )}
+            <Button type="default" onClick={() => setFormVisible(true)}>
+              Şifre Değiştir
+            </Button>
           </>
         ) : (
-          <div>Profil yüklenemedi.</div>
+          <p>Profil yüklenemedi.</p>
         )}
       </Card>
+
     </div>
   );
 };
